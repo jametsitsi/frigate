@@ -19,12 +19,12 @@ RUN apt-get -qq update \
     python3-dev \
     wget \
     # opencv dependencies
-    build-essential cmake git pkg-config libgtk-3-dev \
-    libavcodec-dev libavformat-dev libswscale-dev libv4l-dev \
-    libxvidcore-dev libx264-dev libjpeg-dev libpng-dev libtiff-dev \
-    gfortran openexr libatlas-base-dev libssl-dev\
-    libtbb2 libtbb-dev libdc1394-22-dev libopenexr-dev \
-    libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev \
+    # build-essential cmake git pkg-config libgtk-3-dev \
+    # libavcodec-dev libavformat-dev libswscale-dev libv4l-dev \
+    # libxvidcore-dev libx264-dev libjpeg-dev libpng-dev libtiff-dev \
+    # gfortran openexr libatlas-base-dev libssl-dev\
+    # libtbb2 libtbb-dev libdc1394-22-dev libopenexr-dev \
+    # libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev \
     # scipy dependencies
     gcc gfortran libopenblas-dev liblapack-dev
 
@@ -39,12 +39,12 @@ RUN if [ "${TARGETARCH}" = "arm" ]; \
 COPY requirements.txt /requirements.txt
 RUN pip3 install -r requirements.txt
 
-COPY requirements-wheels.txt /requirements-wheels.txt
-RUN pip3 wheel --wheel-dir=/wheels -r requirements-wheels.txt
+# COPY requirements-wheels.txt /requirements-wheels.txt
+# RUN pip3 wheel --wheel-dir=/wheels -r requirements-wheels.txt
 
 # Frigate Container
-FROM debian:11-slim
-ARG TARGETARCH
+FROM nvcr.io/nvidia/l4t-ml:r35.1.0-py3
+ARG TARGETARCH="arm64"
 
 # https://askubuntu.com/questions/972516/debian-frontend-environment-variable
 ARG DEBIAN_FRONTEND="noninteractive"
@@ -55,7 +55,9 @@ ENV NVIDIA_DRIVER_CAPABILITIES="compute,video,utility"
 
 ENV FLASK_ENV=development
 
-COPY --from=wheels /wheels /wheels
+# COPY --from=wheels /wheels /wheels
+COPY requirements-wheels.txt /requirements-wheels.txt
+RUN pip3 wheel --wheel-dir=/wheels -r requirements-wheels.txt
 
 # Install ffmpeg
 RUN apt-get -qq update \

@@ -1,38 +1,51 @@
-version: "3"
+version: "3.9"
 services:
-  dev:
-    container_name: frigate-dev
-    user: vscode
-    # add groups from host for render, plugdev, video
-    group_add:
-      - "109" # render
-      - "110" # render
-      - "44"  # video
-      - "46"  # plugdev
-    shm_size: "256mb"
-    build:
+  frigate:
+    container_name: frigate-l4t-ml
+    #image: blakeblackshear/frigate:0.11.1
+    #image: frigate_frigate
+    build: 
       context: .
-      dockerfile: docker/Dockerfile.dev
+      dockerfile: ./docker/Dockerfile
+    privileged: true
+    shm_size: "256mb"
+    runtime: "nvidia"
     devices:
-      - /dev/bus/usb:/dev/bus/usb
-      - /dev/dri:/dev/dri # for intel hwaccel, needs to be updated for your hardware
+      - "/dev/nvhost-ctrl:/dev/nvhost-ctrl"
+      - "/dev/nvhost-ctrl-gpu:/dev/nvhost-ctrl-gpu"
+      - "/dev/nvhost-prof-gpu:/dev/nvhost-prof-gpu"
+      - "/dev/nvmap:/dev/nvmap"
+      - "/dev/nvhost-gpu:/dev/nvhost-gpu"
+      - "/dev/nvhost-as-gpu:/dev/nvhost-as-gpu"
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - .:/lab/frigate:cached
+      #- .:/lab/frigate:cached
       - ./config/config.yml:/config/config.yml:ro
-      - ./debug:/media/frigate
-      - /dev/bus/usb:/dev/bus/usb
+      #- ./debug:/media/frigate
+      #- /dev/bus/usb:/dev/bus/usb
+      - /usr/lib/aarch64-linux-gnu/tegra:/usr/lib/aarch64-linux-gnu/tegra
+      #- /mnt/ssd1/julian_dev/frigate/config/config.yml:/config/config.yml:ro
+      - /mnt/dev/frigate/v0.11.1/debug:/media/frigate
+      - /mnt/dev/frigate/v0.11.1/frigate:/opt/frigate/frigate
     ports:
       - "1935:1935"
-      - "3000:3000"
       - "5000:5000"
       - "5001:5001"
+      - "5002:5002"
       - "8080:8080"
-      - "8554:8554"
-    entrypoint: ["sudo", "/init"]
+      # - "11883:11883"
+    # entrypoint: ["sudo", "/init"]
     command: /bin/sh -c "while sleep 1000; do :; done"
-  mqtt:
-    container_name: mqtt
-    image: eclipse-mosquitto:1.6
-    ports:
-      - "1883:1883"
+    environment:
+      # - DISPLAY=${DISPLAY}
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - NVIDIA_VISIBLE_DEVICES=all
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 40G
+    #     reservations:
+    #       memory: 5G
+    #       devices:
+    #       - driver: nvidia
+    #         capabilities: [gpu]
