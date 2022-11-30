@@ -1,6 +1,15 @@
 import datetime
 import logging
-import multiprocessing as mp
+import torch.multiprocessing as mp
+
+# if __name__ == 'frigate.object_detection':
+#     try:
+#         mp.set_start_method('spawn')
+#     except RuntimeError:
+#         pass
+
+import multiprocessing as mpnt
+
 import os
 import queue
 import signal
@@ -13,10 +22,14 @@ from setproctitle import setproctitle
 from frigate.config import DetectorTypeEnum, InputTensorEnum
 from frigate.detectors.edgetpu_tfl import EdgeTpuTfl
 from frigate.detectors.cpu_tfl import CpuTfl
+from frigate.detectors.gpu_torch import GpuTorch
+
+from typing import Dict
 
 from frigate.util import EventsPerSecond, SharedMemoryFrameManager, listen, load_labels
 
 logger = logging.getLogger(__name__)
+logger.info(f"called from {__name__}")
 
 
 class ObjectDetector(ABC):
@@ -57,6 +70,10 @@ class LocalObjectDetector(ObjectDetector):
             self.detect_api = EdgeTpuTfl(
                 det_device=det_device, model_config=model_config
             )
+        elif det_type == DetectorTypeEnum.gpu:
+            self.detect_api = GpuTorch(
+                det_device=det_device, model_config=model_config
+            )
         else:
             logger.warning(
                 "CPU detectors are not recommended and should only be used for testing or for trial purposes."
@@ -86,7 +103,7 @@ class LocalObjectDetector(ObjectDetector):
 def run_detector(
     name: str,
     detection_queue: mp.Queue,
-    out_events: dict[str, mp.Event],
+    out_events: Dict[str, mp.Event],
     avg_speed,
     start,
     model_config,
@@ -118,7 +135,7 @@ def run_detector(
 
     outputs = {}
     for name in out_events.keys():
-        out_shm = mp.shared_memory.SharedMemory(name=f"out-{name}", create=False)
+        out_shm = mpnt.shared_memory.SharedMemory(name=f"out-{name}", create=False)
         out_np = np.ndarray((20, 6), dtype=np.float32, buffer=out_shm.buf)
         outputs[name] = {"shm": out_shm, "np": out_np}
 
@@ -156,6 +173,7 @@ class ObjectDetectProcess:
         det_device=None,
         num_threads=3,
     ):
+        mp.set_start_method('spawn', force=True)
         self.name = name
         self.out_events = out_events
         self.detection_queue = detection_queue
@@ -207,13 +225,13 @@ class RemoteObjectDetector:
         self.fps = EventsPerSecond()
         self.detection_queue = detection_queue
         self.event = event
-        self.shm = mp.shared_memory.SharedMemory(name=self.name, create=False)
+        self.shm = mpnt.shared_memory.SharedMemory(name=self.name, create=False)
         self.np_shm = np.ndarray(
             (1, model_config.height, model_config.width, 3),
             dtype=np.uint8,
             buffer=self.shm.buf,
         )
-        self.out_shm = mp.shared_memory.SharedMemory(
+        self.out_shm = mpnt.shared_memory.SharedMemory(
             name=f"out-{self.name}", create=False
         )
         self.out_np_shm = np.ndarray((20, 6), dtype=np.float32, buffer=self.out_shm.buf)
